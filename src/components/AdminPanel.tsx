@@ -1887,14 +1887,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToStore }) => {
                               body: JSON.stringify(newUserForm),
                             });
                             if (res.ok) {
-                              const createdRole = newUserForm.role;
                               setNewUserForm({ name: '', email: '', password: '', role: 'attendant' });
                               loadOwnerExtras();
-                              if (createdRole === 'owner' && staffUser.id === 'staff-owner-1') {
-                                notify('Dono criado! Ao entrar com sua nova conta, o acesso padrão será removido.');
-                              } else {
-                                notify('Usuário criado!');
-                              }
+                              notify('Usuário criado!');
                             } else {
                               const err = await res.json();
                               notify(err.error || 'Erro ao criar usuário.');

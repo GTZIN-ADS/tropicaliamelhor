@@ -76,10 +76,10 @@ function createInitialDB(): StandaloneDB {
     orders: [],
     staffUsers: [
       {
-        id: 'staff-owner-1',
-        name: 'Proprietário Tropicália',
-        email: 'dono@tropicaliaacai.com.br',
-        password: 'tropicalia2026',
+        id: 'staff-owner-tropicalia',
+        name: 'Tropicália',
+        email: 'tropicalia@gmail.com',
+        password: 'melhor2027',
         role: 'owner',
         active: true,
         createdAt: now,
@@ -96,6 +96,36 @@ function loadDB(): StandaloneDB {
     if (raw) {
       const parsed = JSON.parse(raw) as StandaloneDB;
       if (parsed && parsed.settings && Array.isArray(parsed.categories) && Array.isArray(parsed.products)) {
+        // Migrate away from legacy default accounts if present
+        const hadLegacy = parsed.staffUsers?.some(
+          (u) => u.id === 'staff-owner-1' || u.id === 'staff-attendant-1'
+        );
+        if (hadLegacy) {
+          parsed.sessions = (parsed.sessions || []).filter(
+            (s) => s.userId !== 'staff-owner-1' && s.userId !== 'staff-attendant-1'
+          );
+          parsed.staffUsers = (parsed.staffUsers || []).filter(
+            (u) => u.id !== 'staff-owner-1' && u.id !== 'staff-attendant-1'
+          );
+        }
+        const hasOwner = (parsed.staffUsers || []).some((u) => u.role === 'owner' && u.active);
+        if (!hasOwner) {
+          parsed.staffUsers = [
+            ...(parsed.staffUsers || []),
+            {
+              id: 'staff-owner-tropicalia',
+              name: 'Tropicália',
+              email: 'tropicalia@gmail.com',
+              password: 'melhor2027',
+              role: 'owner',
+              active: true,
+              createdAt: new Date().toISOString(),
+            },
+          ];
+        }
+        if (hadLegacy || !hasOwner) {
+          saveDB(parsed);
+        }
         return parsed;
       }
     }
@@ -162,16 +192,6 @@ function toPublicUser(u: StoredStaffUser): StaffUser {
     active: u.active,
     createdAt: u.createdAt,
   };
-}
-
-function cleanupDefaultStaffIfCustomOwnerExists(db: StandaloneDB) {
-  const hasCustomOwner = db.staffUsers.some(
-    (u) => u.role === 'owner' && u.active && u.id !== 'staff-owner-1' && u.id !== 'staff-attendant-1'
-  );
-  if (hasCustomOwner) {
-    db.sessions = db.sessions.filter((s) => s.userId !== 'staff-owner-1' && s.userId !== 'staff-attendant-1');
-    db.staffUsers = db.staffUsers.filter((u) => u.id !== 'staff-owner-1' && u.id !== 'staff-attendant-1');
-  }
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -368,9 +388,6 @@ export async function handleStandaloneRequest(rawUrl: string, init?: RequestInit
     }
     const token = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     db.sessions.push({ token, userId: user.id });
-    if (user.role === 'owner' && user.id !== 'staff-owner-1') {
-      cleanupDefaultStaffIfCustomOwnerExists(db);
-    }
     saveDB(db);
     return jsonResponse({ token, user: toPublicUser(user) });
   }

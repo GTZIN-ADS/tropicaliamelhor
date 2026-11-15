@@ -188,40 +188,27 @@ function seedIfEmpty() {
     }
   }
 
-  const userCount = (db.prepare(`SELECT COUNT(*) as c FROM staff_users`).get() as { c: number }).c;
-  if (userCount === 0) {
-    const insertUser = db.prepare(
+  // Remove legacy default seeded accounts so only the owner's configured account remains
+  db.prepare(`DELETE FROM sessions WHERE user_id IN ('staff-owner-1', 'staff-attendant-1')`).run();
+  db.prepare(`DELETE FROM staff_users WHERE id IN ('staff-owner-1', 'staff-attendant-1')`).run();
+
+  const ownerCount = (
+    db.prepare(`SELECT COUNT(*) as c FROM staff_users WHERE role = 'owner' AND active = 1`).get() as {
+      c: number;
+    }
+  ).c;
+
+  if (ownerCount === 0) {
+    db.prepare(
       `INSERT INTO staff_users (id, name, email, password_hash, role, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)`
-    );
-    insertUser.run(
-      'staff-owner-1',
-      'Proprietário Tropicália',
-      'dono@tropicaliaacai.com.br',
-      bcrypt.hashSync('tropicalia2026', 10),
+    ).run(
+      'staff-owner-tropicalia',
+      'Tropicália',
+      'tropicalia@gmail.com',
+      bcrypt.hashSync('melhor2027', 10),
       'owner',
       now
     );
-    insertUser.run(
-      'staff-attendant-1',
-      'Atendente Balcão',
-      'atendente@tropicaliaacai.com.br',
-      bcrypt.hashSync('atendente2026', 10),
-      'attendant',
-      now
-    );
-  }
-  cleanupDefaultStaffIfCustomOwnerExists();
-}
-
-function cleanupDefaultStaffIfCustomOwnerExists() {
-  const customOwner = db
-    .prepare(
-      `SELECT id FROM staff_users WHERE role = 'owner' AND active = 1 AND id NOT IN ('staff-owner-1', 'staff-attendant-1') LIMIT 1`
-    )
-    .get();
-  if (customOwner) {
-    db.prepare(`DELETE FROM sessions WHERE user_id IN ('staff-owner-1', 'staff-attendant-1')`).run();
-    db.prepare(`DELETE FROM staff_users WHERE id IN ('staff-owner-1', 'staff-attendant-1')`).run();
   }
 }
 
@@ -759,10 +746,6 @@ app.post('/api/auth/login', (req, res) => {
     row.id,
     expiresAt
   );
-
-  if (row.role === 'owner' && row.id !== 'staff-owner-1') {
-    cleanupDefaultStaffIfCustomOwnerExists();
-  }
 
   res.setHeader(
     'Set-Cookie',
